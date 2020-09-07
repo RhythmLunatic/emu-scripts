@@ -6,9 +6,20 @@
 import os, struct, array
 import subprocess
 import sys
+import time
 from fcntl import ioctl
 
-PROGRAM_TO_KILL = sys.argv[1]
+def processExists(process, isPID = False):
+	if isPID:
+		return subprocess.run(["kill","-0",process], stderr=subprocess.DEVNULL).returncode == 0
+	else:
+		return subprocess.run(["pgrep", process], stdout=subprocess.DEVNULL).returncode == 0
+
+# "But what if my process is named --pid?"
+# Don't do that. Or substitute junk for the first argument.
+givenPIDToKill = (sys.argv[1] == "--pid")
+
+PROGRAM_TO_KILL = sys.argv[-1]
 print("Will kill "+PROGRAM_TO_KILL)
 
 #Since moltengamepad hides existing controllers we need to enumerate until we find a working controller.
@@ -81,9 +92,16 @@ for btn in buf[:num_buttons]:
 #print('%d axes found: %s' % (num_axes, ', '.join(axis_map)))
 print('%d buttons found' % (num_buttons))
 
+# Wait for process to spawn
+initTime = time.time()
+while not processExists(PROGRAM_TO_KILL,givenPIDToKill):
+	if time.time() - initTime > 10:
+		print("Process hasn't spawned in 10 seconds. Giving up and exiting.")
+		os._exit(0)
 
+print("Process spawned, continuing")
 
-while True:
+while processExists(PROGRAM_TO_KILL,givenPIDToKill):
 	evbuf = jsdev.read(8)
 	if evbuf:
 		time, value, type, number = struct.unpack('IhBB', evbuf)
@@ -101,7 +119,11 @@ while True:
 					print("%s pressed" % (button))
 					if button_states[7] and button_states[8]:
 						print("Quit controller hotkey pressed...")
-						subprocess.run(["pkill", "-SIGTERM", PROGRAM_TO_KILL])
+						if givenPIDToKill:
+							subprocess.run(["kill","-s","SIGTERM", PROGRAM_TO_KILL])
+						else:
+							subprocess.run(["pkill", "-SIGTERM", PROGRAM_TO_KILL])
+						print("Good bye.")
 						os._exit(0)
 				#else:
 				#	print("%s released" % (button))
@@ -113,8 +135,4 @@ while True:
 		#		axis_states[axis] = fvalue
 		#		print("%s: %.3f" % (axis, fvalue))
 
-
-"""
-import evdev
-device = evdev.InputDevice('/dev/input/js1')
-"""
+print("The process has exited. This program will exit.")
