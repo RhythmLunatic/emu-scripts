@@ -2,19 +2,30 @@
 # It runs Linux or Windows games with some additional compatibility settings
 
 # Example config file:
-# /mmt/Windows/Games/MBAACC/MBAA.exe
+# program=/mmt/Windows/Games/MBAACC/MBAA.exe
+# args=
 # win=true
 # dinput=false (Not implemented)
+# killbyname=
 
-# Meaning of parameters:
-# 1st line: Location of the game
-# 2nd line: If true, runs using WINE, otherwise executes the program normally
-# 3rd line: If true, controllers will switch to DInput mode so the DPad functions correctly.
+# Parameters can be in any order.
+# program: Location of the game
+# args: Launch arguments of the game
+# win: If true, runs using WINE, otherwise executes the program normally
+# dinput: If true, controllers will switch to DInput mode so the DPad functions correctly.
+# killbyname: The name of the application to kill instead of killing what launched. This is mostly only for launchers like Steam since if you killed by PID you'd kill steam. Keep it blank if you're not running your game through Steam.
 
-mapfile -t < "$1"
+declare -A CONFIG
+while IFS= read -r line; do
+    CONFIG[${line%%=*}]=${line#*=}
+done < "$1"
+
+#mapfile -t < "$1"
+#readarray -t lines < "$1"
+
 
 #Make sure to change directories...
-cd "${MAPFILE[0]%/*}"
+cd "${CONFIG[program]%/*}"
 echo $PWD
 
 # If a wine program gets killed (Even with SIGINT) the resolution won't switch back
@@ -22,14 +33,20 @@ echo $PWD
 currentRes=$(xrandr | grep \* | awk '{print $1}')
 
 # ,, means make it lowercase
-if [ "${MAPFILE[1],,}" = "win=true" ]; then
-    wine "${MAPFILE[0]}" &
+if [ "${CONFIG[win],,}" = "true" ]; then
+    wine "${CONFIG[program]}" "${CONFIG[args]}" &
 else
-    "${MAPFILE[0]}" &
+    "${CONFIG[program]}" "${CONFIG[args]}" &
 fi
-echo "PID of new process is $!"
 
-~/xbox_controller_quit_hotkey.py --pid $!
+echo "${CONFIG[killbyname]}"
+if [[ ! -z "${CONFIG[killbyname]// }" ]]; then
+    echo "Will kill a process by the name of ${CONFIG[killbyname]}"
+    ~/xbox_controller_quit_hotkey.py ${CONFIG[killbyname]}
+else
+    echo "PID of new process is $!"
+    ~/xbox_controller_quit_hotkey.py --pid $!
+fi
 
 while [ -n "$(ps -p $! -o pid=)" ]
 do
