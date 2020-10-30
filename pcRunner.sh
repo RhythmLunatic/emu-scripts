@@ -34,12 +34,23 @@ currentRes=$(xrandr | grep \* | awk '{print $1}')
 
 # ,, means make it lowercase
 if [ "${CONFIG[win],,}" = "true" ]; then
-    wine "${CONFIG[program]}" "${CONFIG[args]}" &
+    if [[ ! -z "${CONFIG[args]// }" ]]; then
+        wine "${CONFIG[program]}" "${CONFIG[args]}" &
+    else
+        wine "${CONFIG[program]}" &
+    fi
 else
-    "${CONFIG[program]}" "${CONFIG[args]}" &
+    #This is how you get steam games working without steam://rungameid
+    #If steam is installed somewhere else... Good luck.
+    export LD_LIBRARY_PATH=~/.steam/debian-installation/ubuntu12_32/steam-runtime/lib/x86_64-linux-gnu
+    if [[ ! -z "${CONFIG[args]// }" ]]; then
+        "${CONFIG[program]}" "${CONFIG[args]}" &
+    else
+        "${CONFIG[program]}" &
+    fi
 fi
 
-echo "${CONFIG[killbyname]}"
+#echo "${CONFIG[killbyname]}"
 if [[ ! -z "${CONFIG[killbyname]// }" ]]; then
     echo "Will kill a process by the name of ${CONFIG[killbyname]}"
     ~/xbox_controller_quit_hotkey.py ${CONFIG[killbyname]}
